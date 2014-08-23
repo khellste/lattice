@@ -15,28 +15,12 @@ ig.Game.inject({
 	round: Math.floor,
 	_loaded: false,
 
-	_snapX: function (x) {
-		if (!this.tilesize) {
-			throw new Error('Invalid state: tilesize not set');
-		}
-		return this.round(x/this.tilesize) * this.tilesize;
-	},
-
-	_snapY: function (y) {
-		if (!this.tilesize) {
-			throw new Error('Invalid state: tilesize not set');
-		}
-		return this.round(y/this.tilesize) * this.tilesize;
-	},
-
-	snap: function (pos) {
-		return this.snapInPlace({ x: pos.x, y: pos.y });
-	},
-
-	snapInPlace: function (pos) {
-		pos.x = this._snapX(pos.x);
-		pos.y = this._snapY(pos.y);
-		return pos;
+	snap: function (pos, abs) {
+		var ts = this.tilesize, rs = this._rscreen;
+		return {
+			x: this.round((pos.x + (abs ? rs.x : 0)) / ts) * ts,
+			y: this.round((pos.y + (abs ? rs.y : 0)) / ts) * ts
+		};
 	},
 
 	loadLevel: function () {
@@ -90,10 +74,6 @@ ig.Game.inject({
 		this.grid.add(ent, newGridPos.r, newGridPos.c);
 	},
 
-	neighborsOf: function (ent) {
-		return this.grid.neighbors(ent.gridPos.r, ent.gridPos.c);
-	},
-
 	removeEntity: function (ent) {
 		(ent instanceof lat.Wall) && ent._orient(true);
 		this.parent(ent);
@@ -107,25 +87,25 @@ ig.Entity.inject({
 
 	init: function (x, y, settings) {
 		this.parent(x, y, settings);
-		this._snap();
+		this.snapping && ig.game._loaded && this._snap();
 	},
 
 	ready: function () {
 		ig.game._afterLoadLevel();
-		this._snap();
+		this.snapping && this._snap();
 	},
 
 	_snap: function () {
-		this.snapping && ig.game._loaded && ig.game.snapEntity(this);
+		ig.game.snapEntity(this);
 	},
 
 	update: function () {
 		this.parent.apply(this, arguments);
-		this._snap();
+		this.snapping && this._snap();
 	},
 
 	neighbors: function () {
-		return ig.game.neighborsOf(this);
+		return ig.game.grid.neighbors(this.gridPos.r, this.gridPos.c);
 	}
 });
 
