@@ -52,60 +52,54 @@ ig.Game.inject({
 	// - updating which spot it occupies in `this._grid`
 	snapEntity: function (ent) {
 
-		// Remember where this Entity was in the Grid
-		var prevGridPos = { r: ent.gridPos.r, c: ent.gridPos.c };
-
 		// Figure out where this Entity should go
 		var newPos = this.snap(ent.pos), ts = this.tilesize;
 		var newGridPos = { r: newPos.y/ts, c: newPos.x/ts };
 
-		// If nothing has changed, don't bother updating the Grid
-		if (ent.pos.x === newPos.x && ent.pos.y === newPos.y &&
-			ent.gridPos.r === newGridPos.r && ent.gridPos.c === newGridPos.c) {
-			return;
+		// Update entity position, if necessary
+		if (ent.pos.x !== newPos.x || ent.pos.y !== newPos.y) {
+			ent.pos = newPos;
 		}
 
-		// Update entity
-		ent.pos.x = newPos.x;
-		ent.pos.y = newPos.y;
-
-		// Update `this._grid`
-		this.grid.remove(ent);
-		this.grid.add(ent, newGridPos.r, newGridPos.c);
+		// Update grid, if necessary
+		if (ent.gridPos.r !== newGridPos.r || ent.gridPos.c !== newGridPos.c) {
+			if (ent.gridPos.r >= 0 && ent.gridPos.c >= 0) {
+				this.grid.rem(ent.gridPos.r, ent.gridPos.c, ent);
+			}
+			this.grid.put(newGridPos.r, newGridPos.c, ent);
+			ent.gridPos = newGridPos;
+		}
 	},
 
 	removeEntity: function (ent) {
 		(ent instanceof lat.Wall) && ent._orient(true);
 		this.parent(ent);
-		ent.snapping && this.grid.remove(ent);
+		ent.snapping && this.grid.rem(ent.gridPos.r, ent.gridPos.c, ent);
 	}
 });
 
 ig.Entity.inject({
 	snapping: true,
+	impassable: false,
 	gridPos: { r: -1, c: -1 },
 
 	init: function (x, y, settings) {
 		this.parent(x, y, settings);
-		this.snapping && ig.game._loaded && this._snap();
+		this.snapping && ig.game._loaded && ig.game.snapEntity(this);
 	},
 
 	ready: function () {
 		ig.game._afterLoadLevel();
-		this.snapping && this._snap();
-	},
-
-	_snap: function () {
-		ig.game.snapEntity(this);
+		this.snapping && ig.game.snapEntity(this);
 	},
 
 	update: function () {
 		this.parent.apply(this, arguments);
-		this.snapping && this._snap();
+		this.snapping && ig.game.snapEntity(this);
 	},
 
-	neighbors: function () {
-		return ig.game.grid.neighbors(this.gridPos.r, this.gridPos.c);
+	neighbors: function (named) {
+		return ig.game.grid.neighbors(this.gridPos.r, this.gridPos.c, named);
 	}
 });
 

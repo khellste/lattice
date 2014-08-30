@@ -7,6 +7,9 @@ window.lat = window.lat || {};
 
 // Wall
 lat.Wall = ig.Entity.extend({
+	impassable: true,
+	snapping: true,
+
 	init: function (x, y, settings) {
 		this.parent(x, y, settings);
 
@@ -27,7 +30,6 @@ lat.Wall = ig.Entity.extend({
 		this.addAnim('11', 1, [14]); // 1110 - above/right/below
 		this.addAnim('15', 1, [15]); // 1111 - above/right/below/left
 
-		//this.currentAnim = this.anims[0];
 		this._initWallProperties();
 		ig.game._loaded && this._orient();
 	},
@@ -35,6 +37,11 @@ lat.Wall = ig.Entity.extend({
 	ready: function () {
 		this.parent();
 		this._orient();
+	},
+
+	kill: function () {
+		this.parent();
+		this._orient(true)
 	},
 
 	_initWallProperties: function () {
@@ -79,18 +86,17 @@ lat.Wall = ig.Entity.extend({
 				set: function (v) {
 					this.dir = v ? (this.dir|bit.W) : (this.dir&~bit.W);
 				}.bind(this)
-			}		});
+			}
+		});
 	},
 
 	_orient: function (erase) {
-		var nbr = this.neighbors(), val = !erase;
-		var set = function (p, v) { return function (o) { o[p] = v; }; };
-
+		var nbr = this.neighbors(true), val = !erase;
 		this.north = this.south = this.east = this.west = false;
-		nbr.up.length && nbr.up.forEach(set('south', this.north = val));
-		nbr.down.length && nbr.down.forEach(set('north', this.south = val));
-		nbr.left.length && nbr.left.forEach(set('east', this.west = val));
-		nbr.right.length && nbr.right.forEach(set('west', this.east = val));
+		nbr.north && (nbr.north.south = this.north = val);
+		nbr.south && (nbr.south.north = this.south = val);
+		nbr.east && (nbr.east.west = this.east = val);
+		nbr.west && (nbr.west.east = this.west = val);
 	}
 });
 
