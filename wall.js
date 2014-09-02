@@ -87,7 +87,7 @@ lat.Wall = ig.Entity.extend({
 	},
 
 	orient: function (erase) {
-		var nbr = this.neighbors(true);
+		var nbr = this.neighbors();
 		this.north = this.south = this.east = this.west = false;
 
 		var st = ig.game.grid.singleTenant;
