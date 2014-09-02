@@ -1,7 +1,8 @@
 ig.module(
 	'plugins.lattice.wall'
 ).requires(
-	'impact.entity'
+	'impact.entity',
+	'impact.game'
 ).defines(function () {
 window.lat = window.lat || {};
 
@@ -31,17 +32,12 @@ lat.Wall = ig.Entity.extend({
 		this.addAnim('15', 1, [15]); // 1111 - above/right/below/left
 
 		this._initWallProperties();
-		ig.game._loaded && this._orient();
+		ig.game._loaded && this.orient(false);
 	},
 
 	ready: function () {
 		this.parent();
-		this._orient();
-	},
-
-	kill: function () {
-		this.parent();
-		this._orient(true)
+		this.orient(false);
 	},
 
 	_initWallProperties: function () {
@@ -90,14 +86,41 @@ lat.Wall = ig.Entity.extend({
 		});
 	},
 
-	_orient: function (erase) {
-		var nbr = this.neighbors(true), val = !erase;
+	orient: function (erase) {
+		var nbr = this.neighbors(true);
 		this.north = this.south = this.east = this.west = false;
-		nbr.north && (nbr.north.south = this.north = val);
-		nbr.south && (nbr.south.north = this.south = val);
-		nbr.east && (nbr.east.west = this.east = val);
-		nbr.west && (nbr.west.east = this.west = val);
+
+		var st = ig.game.grid.singleTenant;
+		if (this.north = ((st && nbr.north) || (!st && nbr.north[0]))) {
+			(st ? [nbr.north] : nbr.north).forEach(function (n) {
+				n.south = !erase;
+			});
+		}
+		if (this.east = ((st && nbr.east) || (!st && nbr.east[0]))) {
+			(st ? [nbr.east] : nbr.east).forEach(function (n) {
+				n.west = !erase;
+			});
+		}
+		if (this.south = ((st && nbr.south) || (!st && nbr.south[0]))) {
+			(st ? [nbr.south] : nbr.south).forEach(function (n) {
+				n.north = !erase;
+			});
+		}
+		if (this.west = ((st && nbr.west) || (!st && nbr.west[0]))) {
+			(st ? [nbr.west] : nbr.west).forEach(function (n) {
+				n.east = !erase;
+			});
+		}
 	}
 });
+
+ig.Game.inject({
+	removeEntity: function (ent) {
+		if (ent instanceof lat.Wall) {
+			ent.orient(true);
+		}
+		this.parent.apply(this, arguments);
+	}
+})
 
 });
