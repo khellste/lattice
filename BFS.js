@@ -172,15 +172,16 @@ ig.Entity.inject({
 				return false;
 			}
 			data.delta = this._getBfsCellData(bfsName, 'delta', null);
+			var snap = ig.game.snap(this.pos);
 			data.dest = {
-				x: this.pos.x + data.delta.c * ig.game.tilesize,
-				y: this.pos.y + data.delta.r * ig.game.tilesize
+				x: snap.x + data.delta.c * ig.game.tilesize,
+				y: snap.y + data.delta.r * ig.game.tilesize
 			};
 		}
 
 		// Am I at the final destination?
 		if (data.delta.r === 0 && data.delta.c === 0) {
-			data.done = data.delta = data.dest = null;
+			data.delta = data.dest = null;
 			this._bfs_data.lastBfs = null;
 			this.vel.x = this.vel.y = 0;
 			return true;
