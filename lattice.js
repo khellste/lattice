@@ -108,8 +108,8 @@ ig.Entity.inject({
 		ig.game.snapEntity(this);
 	},
 
-	neighbors: function () {
-		return ig.game.grid.neighbors(this.gridPos.r, this.gridPos.c);
+	neighbors: function (Type) {
+		return ig.game.grid.neighbors(this.gridPos.r, this.gridPos.c, Type);
 	}
 });
 

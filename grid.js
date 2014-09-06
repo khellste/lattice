@@ -74,20 +74,28 @@ lat.Grid = ig.Class.extend({
 		return ret;
 	},
 
-	neighbors: function (r, c) {
+	neighbors: function (r, c, Type) {
+		var test = function (o) { return (!Type) || (o instanceof Type); };
 		var ret = [],
 			n = this.get(r - 1, c), e = this.get(r, c + 1),
 			s = this.get(r + 1, c), w = this.get(r, c - 1);
 		if (this.singleTenant) {
-			n && ret.push(n); e && ret.push(e);
-			s && ret.push(s); w && ret.push(w);
+			n && test(n) && ret.push(n) && (ret.north = n);
+			e && test(n) && ret.push(e) && (ret.east = e);
+			s && test(n) && ret.push(s) && (ret.south = s);
+			w && test(n) && ret.push(w) && (ret.west = w);
 		}
 		else {
-			var push = function (i) { ret.push(i); };
-			n && n.forEach(push); e && e.forEach(push);
-			s && s.forEach(push); w && w.forEach(push);
+			ret.north = []; ret.east = [];
+			ret.south = []; ret.west = [];
+			var push = function (arr, i) {
+				test(i) && ret.push(i) && arr.push(i);
+			};
+			n && n.forEach(push.bind(null, ret.north));
+			e && e.forEach(push.bind(null, ret.east));
+			s && s.forEach(push.bind(null, ret.south));
+			w && w.forEach(push.bind(null, ret.west));
 		}
-		ret.north = n; ret.east = e; ret.south = s; ret.west = w;
 		return ret;
 	}
 });

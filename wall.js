@@ -10,6 +10,7 @@ window.lat = window.lat || {};
 lat.Wall = ig.Entity.extend({
 	impassable: true,
 	snapping: true,
+	collides: ig.Entity.COLLIDES.FIXED,
 
 	init: function (x, y, settings) {
 		this.parent(x, y, settings);
@@ -87,7 +88,7 @@ lat.Wall = ig.Entity.extend({
 	},
 
 	orient: function (erase) {
-		var nbr = this.neighbors(), st = ig.game.grid.singleTenant;
+		var nbr = this.neighbors(lat.Wall), st = ig.game.grid.singleTenant;
 		this.north = this.south = this.east = this.west = false;
 
 		if (this.north = ((st && nbr.north) || (!st && nbr.north[0]))) {
