@@ -7,29 +7,54 @@ ig.module(
 
 // A plugin encapsulating the work involved in BFS
 lat.BfsGridPlugin = lat.GridPlugin.extend({
+
+	// Set this to `true` to indicate that this BFS plugin should not treat
+	// any Entities as impassible. (This only necessarily works as long as you
+	// don't override the default implementation of `isImpassable`.) Setting
+	// this to `true` also has the effect that this BFS plugin will never be
+	// asked to re-calculate automatically, e.g., when a new impassable Entity
+	// is spawned in the game. (You can always manually, re-calculate, though.)
 	ignoreImpassable: false,
-	neverRecalculate: false,
+
+	// The "target" cell of this BFS, which all Entities will move towards if
+	// they call `stepTorwardsTarget('this-plugin')`, assuming this plugin is
+	// named 'this-plugin'.
 	target: null,
 
+	// Keep track of all the instances of this plugin so that we can easily
+	// ask them to re-calculate if we need to.
 	init: function () {
 		this.parent.apply(this, arguments);
 		lat.BfsGridPlugin.instances.push(this);
 	},
 
+	// Don't call this function explicitly. This function is called either in
+	// lat.Grid.addPlugin or ig.Game.loadLevel, depending on whether or not the
+	// level has already loaded.
 	setup: function () {
 		if (!this.target) return;
 
-		// Fix up `this.target`
+		// Case: `target` is an entity
 		if (this.target instanceof ig.Entity) {
 			var pos = this.target.gridPos;
 			this.target = this.grid.cellAt(pos.r, pos.c);
 		}
+
+		// Case: `target` is a pair of { r, c } coords
 		else if (this.target.r != null && this.target.c != null) {
 			this.target = this.grid.cellAt(this.targer.r, this.target.c);
+		}
+
+		// Case: `target` is a pair of { x, y } coords
+		else if (this.target.x != null && this.target.y != null) {
+			var snap = ig.game.snap(this.target), ts = ig.game.tilesize;
+			this.target = this.grid.cellAt(snap.y / ts, snap.x / ts);
 		}
 		this.calculate();
 	},
 
+	// Called on a cell to determine whether or not that cell should be treated
+	// as impassable, at least for the purposes of the BFS calculation.
 	isImpassable: function (cell) {
 		if (this.ignoreImpassable) return false;
 		return cell.tenants.some(function (tenant) {
@@ -37,6 +62,7 @@ lat.BfsGridPlugin = lat.GridPlugin.extend({
 		});
 	},
 
+	// Calculate or re-calculate the paths for this BFS plugin.
 	calculate: function () {
 
 		// Clean up any previous calculation
@@ -44,6 +70,7 @@ lat.BfsGridPlugin = lat.GridPlugin.extend({
 			this.data(cell).next = null;
 			this.data(cell).delta = null;
 			this.data(cell).reachable = false;
+			this.data(cell).name = this.name;
 		}.bind(this));
 
 		// Setup
@@ -64,7 +91,7 @@ lat.BfsGridPlugin = lat.GridPlugin.extend({
 			}.bind(this));
 		}
 
-		// Calculate deltas
+		// Calculate deltas, etc.
 		this.data(start).next = null;
 		this.grid.forEach(function (cell) {
 			if (this.data(cell).reachable) {
@@ -80,10 +107,12 @@ lat.BfsGridPlugin = lat.GridPlugin.extend({
 		}.bind(this));
 	},
 
+	// Return the "delta" metadata for the given grid cell
 	deltaNext: function (r, c) {
 		return this.data(this.grid.cellAt(r, c)).delta;
 	},
 
+	// Return whether or not the given cell can reach the BFS target
 	reachable: function (r, c) {
 		return this.data(this.grid.cellAt(r, c)).reachable;
 	}
@@ -95,11 +124,12 @@ lat.BfsGridPlugin.instances = [];
 // Call this to recalculate all BFS plugins
 lat.BfsGridPlugin.recalculateAll = function () {
 	lat.BfsGridPlugin.instances.forEach(function (bfs) {
-		bfs.ignoreImpassable || bfs.neverRecalculate || bfs.calculate();
+		bfs.ignoreImpassable || bfs.calculate();
 	});
 };
 
-// When an impassable object is created or destroyed, recalculate
+// When an impassable object is created or destroyed, we need to
+// re-calculate all the BFS plugins that care about impassability.
 ig.Game.inject({
 	spawnEntity: function () {
 		var ent = this.parent.apply(this, arguments);
@@ -122,8 +152,25 @@ ig.Game.inject({
 // directly on ig.game.grid
 ig.Entity.inject({
 	impassable: false,
-	_bfs_data: { },
 
+	// An object describing whatever BFS movement is currently being made, of
+	// the form:
+	// {
+	// 		delta 	The { r, c } delta for this movement
+	//		target 	The { r, c, x, y } target of the movement
+	//		name 	The name of the BFS plugin that generated the movement
+	//		vel		The velocity needed/used to effect the movement
+	// }
+	_bfs_curr: null,
+
+	// The { r, c } delta object describing the *next* BFS movement the Entity
+	// should take. This is used to "un-correct" the snap-to-target that occurs
+	// after the Entity reaches its waypoint, provided `_bfs_next` represents a
+	// movement in the same direction as `_bfs_curr`.
+	_bfs_next: null,
+
+	// Install `impassable` getter/setter that will cause all BFS plugins to
+	// recalculate when changed.
 	init: function () {
 		this.parent.apply(this, arguments);
 		var impassable = this.impassable;
@@ -139,81 +186,123 @@ ig.Entity.inject({
 		});
 	},
 
-	// Gets any data associated with this Entity by the given BFS plugin
-	_getBfsEntityData: function (bfsName) {
-		if (!ig.game.grid.plugins[bfsName]) {
-			bfsName = lat.BfsGridPlugin.instances[0].name;
-		}
-		return this._bfs_data[bfsName] = this._bfs_data[bfsName] || { };
+	// Gets any BFS data associated either with the cell that this Entity is in
+	// (for Entities that aren't currently moving), or with the cell that this
+	// Entity is heading for (for Entities that are currently moving).
+	_bfs_cellData: function (bfsName, pos) {
+		pos = pos || (this._bfs_curr ? this._bfs_curr.target : this.gridPos);
+		bfsName = bfsName || lat.BfsGridPlugin.instances[0].name;
+		var cell = ig.game.grid.cellAt(pos.r, pos.c);
+		return cell ? ig.game.grid.plugins[bfsName].data(cell) : null;
 	},
 
-	// Gets any BFS data associated with the cell this Entity is in
-	_getBfsCellData: function (bfsName, prop, _default) {
-		var grid = ig.game.grid, pos = this.gridPos;
-		var plugin = grid.plugins[bfsName] || lat.BfsGridPlugin.instances[0];
-		var cell = grid.cellAt(pos.r, pos.c);
-		return cell ? plugin.data(cell)[prop] : _default;
+	// Returns true if this Entity has just hit a BFS waypoint
+	_bfs_checkWaypoint: function () {
+		if (this._bfs_curr) {
+			var curr = this._bfs_curr, d = curr.delta, t = curr.target;
+			var px = this.pos.x, py = this.pos.y,
+				tx = t.x, ty = t.y, dx = d.c, dy = d.r;
+			if (((dx < 0 && px <= tx) || (dx > 0 && px >= tx) || (px === tx)) &&
+				((dy < 0 && py <= ty) || (dy > 0 && py >= ty) || (py === ty))) {
+				return true;
+			}
+		}
+		return false;
+	},
+
+	// Override. Before invoking the parent, set velocities according to the
+	// current BFS path, if there is one.
+	update: function () {
+		if (this._bfs_curr) {
+			this.vel.x = this._bfs_curr.vel.x;
+			this.vel.y = this._bfs_curr.vel.y;
+		}
+		this.parent();
 	},
 
 	// Can I reach the BFS target?
-	canReachTarget: function (bfsName) {
-		return this._getBfsCellData(bfsName, 'reachable', false);
+	canReachTarget: function (bfsName, pos) {
+		var data = this._bfs_cellData(bfsName, pos);
+		return data ? data.reachable : false;
 	},
 
-	// Returns true if progress can be made, false otherwise
-	// TODO: How to handle when the entity is moved, e.g., by a collision?
+	// Call this function to notify this Entity that you want it to move
+	// towards the target of the given named BFS plugin.
 	stepTowardsTarget: function (speed, bfsName) {
-		var data = this._getBfsEntityData(bfsName);
+		bfsName = bfsName || lat.BfsGridPlugin.instances[0].name;
 
-		// Calculate the next waypoint, if it hasn't been calculated already
-		if (!data.delta) {
-			if (!this.canReachTarget(bfsName)) {
-				this.vel.x = this.vel.y = 0;
-				return false;
+		// If I am already moving, do nothing.
+		if (this._bfs_curr) {
+			if (this.canReachTarget(bfsName)) {
+				window.foobar = true;
+				this._bfs_next = this._bfs_cellData(bfsName).delta;
+				return true;
 			}
-			data.delta = this._getBfsCellData(bfsName, 'delta', null);
-			var snap = ig.game.snap(this.pos);
-			data.dest = {
-				x: snap.x + data.delta.c * ig.game.tilesize,
-				y: snap.y + data.delta.r * ig.game.tilesize
-			};
+			return false;
 		}
 
-		// Am I at the final destination?
-		if (data.delta.r === 0 && data.delta.c === 0) {
-			data.delta = data.dest = null;
-			this._bfs_data.lastBfs = null;
-			this.vel.x = this.vel.y = 0;
-			return true;
+		// Otherwise, find out where I need to move (if possible).
+		else {
+			var data = this._bfs_cellData(bfsName);
+			if (data.reachable) {
+				var del = data.delta, spe = speed || 1;
+				if (!data.next) {
+					return true;
+				}
+				var target = data.next.pos;
+				target.x = target.c * ig.game.tilesize;
+				target.y = target.r * ig.game.tilesize;
+				this._bfs_curr = {
+					delta: del,
+					target: target,
+					name: bfsName,
+					vel: { x: del.c * spe, y: del.r * spe }
+				};
+				return true;
+			}
+			return false;
 		}
-
-		// Set up the entity to move next update
-		this.vel.x = data.delta.c * (speed || 1);
-		this.vel.y = data.delta.r * (speed || 1);
-		this._bfs_data.lastBfs = bfsName;
-		return true;
 	},
 
-	// Override. After doing the parent action, check to see if I have hit a
-	// waypoint along a BFS path.
-	handleMovementTrace: function (res) {
-		this.parent(res);
+	// Override. After invoking the parent behavior, check to see if this
+	// Entity was on a BFS path and if it hit the waypoint on that path. If
+	// both are true, remove the waypoint and correct the Entity's position to
+	// match that of the waypoint. Removing the waypoint signals to the next
+	// call to `stepTowardsTarget` that a new waypoint can be generated.
+	// TODO: What happens when an Entity is displaced by a significantly large
+	// dynamic collision?
+	afterUpdate: function () {
+		this.parent();
 
-		// Am I in the middle of BFS movement
-		var bfs = this._bfs_data.lastBfs;
-		if (bfs) {
-			this._bfs_data.lastBfs = null;
-			var data = this._getBfsEntityData(bfs);
-			if (!data.delta || !data.dest) return;
+		// Check to see if I hit a waypoint.
+		if (this._bfs_checkWaypoint()) {
+			var curr = this._bfs_curr, next = this._bfs_next,
+				_x = this.pos.x, _y = this.pos.y;
 
-			// Have I hit a BFS waypoint?
-			var dr = data.delta.r, dc = data.delta.c, tx = data.dest.x,
-				ty = data.dest.y, px = this.pos.x, py = this.pos.y;
-			if (((dc > 0 && px >= tx) || (dc < 0 && px <= tx) || (px === tx)) &&
-				((dr > 0 && py >= ty) || (dr < 0 && py <= ty) || (py === ty))) {
-				this.pos = data.dest;
-				data.delta = null;
+			// Snap my position to the waypoint I just hit
+			this.pos.x = curr.target.x;
+			this.pos.y = curr.target.y;
+			ig.game.snapEntity(this);
+
+			// If there is another BFS waiting to start, "un-correct" the
+			// position if the next waypoint is in the same direction as the
+			// waypoint this Entity just hit.
+			if (next && next.r === curr.delta.r && next.c === curr.delta.c) {
+				this._bfs_next = null;
+				this.pos.x = _x;
+				this.pos.y = _y;
 			}
+
+			this._bfs_curr = null;
+			this.vel.x = this.vel.y = 0;
+		}
+
+		// If I'm trying to move to a waypoint but am blocked, remove the
+		// offending waypoint.
+		else if (this._bfs_curr &&
+			this.pos.x === this.last.x && this.pos.y === this.last.y) {
+			this._bfs_curr = null;
+			this.vel.x = this.vel.y = 0;
 		}
 	}
 });
