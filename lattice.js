@@ -12,14 +12,13 @@ ig.Game.inject({
 	tilesize: 0,
 	size: { x: 0, y: 0 },
 	grid: null,
-	round: Math.floor,
 	_loaded: false,
 
 	snap: function (pos, abs) {
 		var ts = this.tilesize, rs = this._rscreen;
 		return {
-			x: this.round((pos.x + (abs ? rs.x : 0)) / ts) * ts,
-			y: this.round((pos.y + (abs ? rs.y : 0)) / ts) * ts
+			x: Math.floor((pos.x + (abs ? rs.x : 0)) / ts) * ts,
+			y: Math.floor((pos.y + (abs ? rs.y : 0)) / ts) * ts
 		};
 	},
 
@@ -52,13 +51,13 @@ ig.Game.inject({
 
 	// Snap an entity to the grid. This includes:
 	// - updating its position in the game to be grid-aligned
-	// - updating which spot it occupies in `this._grid`
+	// - updating which spot it occupies in `this.gridPos`
 	snapEntity: function (ent) {
-		if (ent.ignoreGrid) return;
 
 		// Figure out where this Entity should go
 		var newPos = this.snap(ent.pos), ts = this.tilesize;
 		var newGridPos = { r: newPos.y/ts, c: newPos.x/ts };
+
 		var x1 = ent.pos.x, y1 = ent.pos.y, x2 = newPos.x, y2 = newPos.y;
 		var r1 = ent.gridPos.r, c1 = ent.gridPos.c,
 			r2 = newGridPos.r, c2 = newGridPos.c;
@@ -85,6 +84,17 @@ ig.Game.inject({
 		if (!ent.ignoreGrid) {
 			this.grid.rem(ent.gridPos.r, ent.gridPos.c, ent);
 		}
+	},
+
+	update: function () {
+		this.parent();
+		for (var i = 0; i < this.entities.length; i++) {
+			var ent = this.entities[i];
+			if (!ent._killed) {
+				ent.ignoreGrid || this.snapEntity(ent);
+				ent.afterUpdate();
+			}
+		}
 	}
 });
 
@@ -103,10 +113,9 @@ ig.Entity.inject({
 		ig.game.snapEntity(this);
 	},
 
-	update: function () {
-		this.parent.apply(this, arguments);
-		ig.game.snapEntity(this);
-	},
+	// Called after update, after all static and dynamic collisions have been
+	// resolved, and after the entity has been snapped to the grid.
+	afterUpdate: function () { },
 
 	neighbors: function (Type) {
 		return ig.game.grid.neighbors(this.gridPos.r, this.gridPos.c, Type);
