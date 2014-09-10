@@ -53,6 +53,7 @@ ig.Game.inject({
 	// - updating its position in the game to be grid-aligned
 	// - updating which spot it occupies in `this.gridPos`
 	snapEntity: function (ent) {
+		if (ent.ignoreGrid) return;
 
 		// Figure out where this Entity should go
 		var newPos = this.snap(ent.pos), ts = this.tilesize;
@@ -91,7 +92,7 @@ ig.Game.inject({
 		for (var i = 0; i < this.entities.length; i++) {
 			var ent = this.entities[i];
 			if (!ent._killed) {
-				ent.ignoreGrid || this.snapEntity(ent);
+				this.snapEntity(ent);
 				ent.afterUpdate();
 			}
 		}
