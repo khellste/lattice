@@ -8,10 +8,17 @@ ig.module(
 
 // Cheese extensions
 lat.SnapCursor = ch.Cursor.extend({
+	snapping: false,
+
 	draw: function (x, y) {
-		var snap = ig.game.snap({ x: x, y: y }, true),
-			rs = ig.game._rscreen;
-		this.parent(snap.x - rs.x, snap.y - rs.y);
+		if (this.snapping) {
+			var snap = ig.game.snap({ x: x, y: y }, true),
+				rs = ig.game._rscreen;
+			this.parent(snap.x - rs.x, snap.y - rs.y);
+		}
+		else {
+			this.parent(x, y);
+		}
 	}
 });
 

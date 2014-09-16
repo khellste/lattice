@@ -169,6 +169,10 @@ ig.Entity.inject({
 	// movement in the same direction as `_bfs_curr`.
 	_bfs_next: null,
 
+	// Set this to true to pause the current BFS movement
+	_bfs_pauseTimeoutId: null,
+	_bfs_pause: false,
+
 	// Install `impassable` getter/setter that will cause all BFS plugins to
 	// recalculate when changed.
 	init: function () {
@@ -213,7 +217,10 @@ ig.Entity.inject({
 	// Override. Before invoking the parent, set velocities according to the
 	// current BFS path, if there is one.
 	update: function () {
-		if (this._bfs_curr) {
+		if (this._bfs_pause) {
+			this.vel.x = this.vel.y = 0;
+		}
+		else if (this._bfs_curr) {
 			this.vel.x = this._bfs_curr.vel.x;
 			this.vel.y = this._bfs_curr.vel.y;
 		}
@@ -261,6 +268,23 @@ ig.Entity.inject({
 				return true;
 			}
 			return false;
+		}
+	},
+
+	pauseMovement: function (duration) {
+		if (duration != null) {
+			this._bfs_pauseTimeoutId = setTimeout(function () {
+				this.resumeMovement();
+			}.bind(this), duration);
+		}
+		this._bfs_pause = true;
+	},
+
+	resumeMovement: function () {
+		this._bfs_pause = false;
+		if (this._bfs_pauseTimeoutId != null) {
+			clearTimeout(this._bfs_pauseTimeoutId);
+			this._bfs_pauseTimeoutId = null;
 		}
 	},
 
