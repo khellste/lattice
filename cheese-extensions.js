@@ -12,12 +12,12 @@ lat.SnapCursor = ch.Cursor.extend({
 
 	draw: function (x, y) {
 		if (this.snapping) {
-			var snap = ig.game.snap({ x: x, y: y }, true),
-				rs = ig.game._rscreen;
-			this.parent(snap.x - rs.x, snap.y - rs.y);
+			var snap = ig.game.snap({ x: x, y: y }, true);
+			this.parent(snap.x, snap.y);
 		}
 		else {
-			this.parent(x, y);
+			var scrn = ig.game._rscreen;
+			this.parent(x + scrn.x, y + scrn.y);
 		}
 	}
 });
