@@ -172,6 +172,7 @@ ig.Entity.inject({
 	// Set this to true to pause the current BFS movement
 	_bfs_pauseTimeoutId: null,
 	_bfs_pause: false,
+	_bfs_wasPaused: false,
 
 	// Install `impassable` getter/setter that will cause all BFS plugins to
 	// recalculate when changed.
@@ -282,6 +283,7 @@ ig.Entity.inject({
 
 	resumeMovement: function () {
 		this._bfs_pause = false;
+		this._bfs_wasPaused = true;
 		if (this._bfs_pauseTimeoutId != null) {
 			clearTimeout(this._bfs_pauseTimeoutId);
 			this._bfs_pauseTimeoutId = null;
@@ -323,11 +325,12 @@ ig.Entity.inject({
 
 		// If I'm trying to move to a waypoint but am blocked, remove the
 		// offending waypoint.
-		else if (this._bfs_curr &&
+		else if (!this._bfs_pause && !this._bfs_wasPaused && this._bfs_curr &&
 			this.pos.x === this.last.x && this.pos.y === this.last.y) {
 			this._bfs_curr = null;
 			this.vel.x = this.vel.y = 0;
 		}
+		this._bfs_wasPaused = this._bfs_pause;
 	}
 });
 
