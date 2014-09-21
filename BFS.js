@@ -59,7 +59,10 @@ lat.BfsGridPlugin = lat.GridPlugin.extend({
 		if (this.ignoreImpassable) return false;
 		return cell.tenants.some(function (tenant) {
 			return tenant.impassable;
-		});
+		}) || (function (cell) {
+			var map = ig.game.collisionMap;
+			return map ? (map.data[cell.pos.r][cell.pos.c] !== 0) : false;
+		})(cell);
 	},
 
 	// Calculate or re-calculate the paths for this BFS plugin.
@@ -252,6 +255,10 @@ ig.Entity.inject({
 		// Otherwise, find out where I need to move (if possible).
 		else {
 			var data = this._bfs_cellData(bfsName);
+			if (!data) {
+				console.error("I'm outside the grid!");
+				return false;
+			}
 			if (data.reachable) {
 				var del = data.delta, spe = speed || 1;
 				if (!data.next) {
