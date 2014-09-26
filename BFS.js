@@ -23,8 +23,8 @@ lat.BfsGridPlugin = lat.GridPlugin.extend({
 
 	// Keep track of all the instances of this plugin so that we can easily
 	// ask them to re-calculate if we need to.
-	init: function () {
-		this.parent.apply(this, arguments);
+	init: function (settings) {
+		this.parent(settings);
 		lat.BfsGridPlugin.instances.push(this);
 	},
 
@@ -108,6 +108,38 @@ lat.BfsGridPlugin = lat.GridPlugin.extend({
 				this.data(cell).delta = null;
 			}
 		}.bind(this));
+	},
+
+	// Test to see if a given cell is a "bottleneck", e.g., will making this
+	// cell impassable cause any non-impassable cells to become unreachable?
+	test: function (r, c) {
+
+		var _data = this.data;
+		this.data = function () {
+			var data = _data.apply(this, arguments);
+			data._tmp = data._tmp || {};
+			return data._tmp;
+		};
+
+		var _isImpassable = this.isImpassable;
+		this.isImpassable = function (cell) {
+			return (cell.pos.r === r && cell.pos.c === c) ||
+				_isImpassable.call(this, cell);
+		};
+
+		this.calculate();
+
+		var blocked = false;
+		this.grid.forEach(function (cell) {
+			if (blocked) return;
+			if (!this.isImpassable(cell) && !this.data(cell).reachable) {
+				blocked = true;
+			}
+		}.bind(this));
+
+		this.data = _data;
+		this.isImpassable = _isImpassable;
+		return blocked;
 	},
 
 	// Return the "delta" metadata for the given grid cell
