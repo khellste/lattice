@@ -52,6 +52,7 @@ ig.Game.inject({
 	// Snap an entity to the grid. This includes:
 	// - updating its position in the game to be grid-aligned
 	// - updating which spot it occupies in `this.gridPos`
+    // Returns true if the entity changed grid positions
 	snapEntity: function (ent) {
 		if (ent.ignoreGrid) return;
 
@@ -77,7 +78,9 @@ ig.Game.inject({
 			}
 			this.grid.put(r2, c2, ent);
 			ent.gridPos = newGridPos;
+            return true;
 		}
+        return false;
 	},
 
 	removeEntity: function (ent) {
@@ -92,8 +95,10 @@ ig.Game.inject({
 		for (var i = 0; i < this.entities.length; i++) {
 			var ent = this.entities[i];
 			if (!ent._killed) {
-				this.snapEntity(ent);
+                var oldCell = ent.gridPos;
+				var newPos = this.snapEntity(ent);
 				ent.afterUpdate();
+                newPos && ent.onNewGridPos(oldCell);
 			}
 		}
 	}
@@ -117,6 +122,9 @@ ig.Entity.inject({
 	// Called after update, after all static and dynamic collisions have been
 	// resolved, and after the entity has been snapped to the grid.
 	afterUpdate: function () { },
+
+    // Called right after an entity moves to a new grid cell
+    onNewGridPos: function (oldCell) { },
 
 	neighbors: function (Type) {
 		return ig.game.grid.neighbors(this.gridPos.r, this.gridPos.c, Type);
