@@ -6,6 +6,7 @@ ig.module(
 ).defines(function () {
 
 // A plugin encapsulating the work involved in BFS
+var injected = false;
 lat.BfsGridPlugin = lat.GridPlugin.extend({
 
 	// Set this to `true` to indicate that this BFS plugin should not treat
@@ -26,6 +27,11 @@ lat.BfsGridPlugin = lat.GridPlugin.extend({
 	init: function (settings) {
 		this.parent(settings);
 		lat.BfsGridPlugin.instances.push(this);
+
+		if (!injected) {
+			injected = true;
+			lat.BfsGridPlugin._injectEntity();
+		}
 	},
 
 	// Don't call this function explicitly. This function is called either in
@@ -185,7 +191,7 @@ ig.Game.inject({
 // Give each entity an `impassable` property. Also implement some utility
 // methods for interfacing with BFS plugins without having to call methods
 // directly on ig.game.grid
-ig.Entity.inject({
+lat.BfsGridPlugin._injectEntity = ig.Entity.inject.bind(ig.Entity, {
 	impassable: false,
 
 	// An object describing whatever BFS movement is currently being made, of
