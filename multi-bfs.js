@@ -60,7 +60,9 @@ lat.MultiBfsGridPlugin = lat.GridPlugin.extend({
 	},
 
 	test: function (r, c) {
-
+		return this.bfsPlugins.reduce(function (blocked, bfs) {
+			return blocked || bfs.test(r, c);
+		}, false);
 	}
 });
 lat.MultiBfsGridPlugin.instances = { };
