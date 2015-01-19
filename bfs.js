@@ -1,12 +1,11 @@
 ig.module(
-	'plugins.lattice.BFS'
+	'plugins.lattice.bfs'
 ).requires(
 	'plugins.lattice.grid-plugin',
 	'impact.entity'
 ).defines(function () {
 
 // A plugin encapsulating the work involved in BFS
-var injected = false;
 lat.BfsGridPlugin = lat.GridPlugin.extend({
 
 	// Set this to `true` to indicate that this BFS plugin should not treat
@@ -27,11 +26,6 @@ lat.BfsGridPlugin = lat.GridPlugin.extend({
 	init: function (settings) {
 		this.parent(settings);
 		lat.BfsGridPlugin.instances.push(this);
-
-		if (!injected) {
-			injected = true;
-			lat.BfsGridPlugin._injectEntity();
-		}
 	},
 
 	// Don't call this function explicitly. This function is called either in
@@ -48,7 +42,7 @@ lat.BfsGridPlugin = lat.GridPlugin.extend({
 
 		// Case: `target` is a pair of { r, c } coords
 		else if (this.target.r != null && this.target.c != null) {
-			this.target = this.grid.cellAt(this.targer.r, this.target.c);
+			this.target = this.grid.cellAt(this.target.r, this.target.c);
 		}
 
 		// Case: `target` is a pair of { x, y } coords
@@ -80,27 +74,32 @@ lat.BfsGridPlugin = lat.GridPlugin.extend({
 			this.data(cell).delta = null;
 			this.data(cell).reachable = false;
 			this.data(cell).name = this.name;
+			this.data(cell).dist = Infinity;
 		}.bind(this));
 
 		// Setup
 		var start = this.target;
 		var frontier = [start];
 		this.data(start).next = true;
+		this.data(start).dist = 0;
 
 		// Do BFS
 		while (frontier.length) {
 			var curr = frontier.shift();
 			this.grid.neighborCells(curr).forEach(function (next) {
-				if (this.isImpassable(next)) return;
+				if (this.isImpassable(next)) {
+					return;
+				}
 				this.data(next).reachable = true;
 				if (!this.data(next).next) {
 					frontier.push(next);
 					this.data(next).next = curr;
+					this.data(next).dist = this.data(curr).dist + 1;
 				}
 			}.bind(this));
 		}
 
-		// Calculate deltas, etc.
+		// Calculate deltas
 		this.data(start).next = null;
 		this.grid.forEach(function (cell) {
 			if (this.data(cell).reachable) {
@@ -108,7 +107,7 @@ lat.BfsGridPlugin = lat.GridPlugin.extend({
 				this.data(cell).delta = {
 					r: next ? next.pos.r - cell.pos.r : 0,
 					c: next ? next.pos.c - cell.pos.c : 0
-				}
+				};
 			}
 			else {
 				this.data(cell).delta = null;
@@ -191,7 +190,7 @@ ig.Game.inject({
 // Give each entity an `impassable` property. Also implement some utility
 // methods for interfacing with BFS plugins without having to call methods
 // directly on ig.game.grid
-lat.BfsGridPlugin._injectEntity = ig.Entity.inject.bind(ig.Entity, {
+ig.Entity.inject({
 	impassable: false,
 
 	// An object describing whatever BFS movement is currently being made, of

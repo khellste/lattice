@@ -19,6 +19,7 @@ lat.Grid.inject({
 		data[name] = { };
 		lat.GridCell.inject({ data: data })
 		ig.game._loaded && plugin.setup();
+		return plugin;
 	}
 });
 
