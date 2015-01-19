@@ -67,16 +67,28 @@ lat.MultiBfsGridPlugin = lat.GridPlugin.extend({
 });
 lat.MultiBfsGridPlugin.instances = { };
 
+var maskBfs = function (bfsName, entity) {
+	var multiPlugin = lat.MultiBfsGridPlugin.instances[bfsName];
+	if (multiPlugin != null) {
+		var bestBfs = multiPlugin.findBestBfs(entity);
+		if (bestBfs != null) {
+			return bestBfs.name;
+		}
+	}
+	return bfsName;
+};
+
 ig.Entity.inject({
 	stepTowardsTarget: function (speed, bfsName) {
-		var multiPlugin = lat.MultiBfsGridPlugin.instances[bfsName];
-		if (multiPlugin != null) {
-			var bestBfs = multiPlugin.findBestBfs(this);
-			if (bestBfs != null) {
-				bfsName = bestBfs.name;
-			}
-		}
-		this.parent(speed, bfsName);
+		return this.parent(speed, maskBfs(bfsName, this));
+	},
+
+	canReachTarget: function (bfsName, pos) {
+		return this.parent(maskBfs(bfsName, this), pos);
+	},
+
+	_bfs_callData: function (bfsName, pos) {
+		return this.parent(maskBfs(bfsName, this), pos);
 	}
 });
 
